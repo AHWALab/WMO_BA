@@ -1,46 +1,173 @@
-# WMO Barbados Capacity Building Workshop
+# EF5 — Workshop for Barbados
 
-This repository contains the materials developed for the capacity-building workshops in Barbados on the UFFIS system for **hydrologic modeling and flash flood forecasting**, using **EF5 (Ensemble Framework for Flash Flood Forecasting)** and **TITO**.
+Standalone EF5 setup for Barbados at **30 m only**. It runs the flood model
+through a Docker container while **TITO Barbados training stays untouched**.
+The EF5 image is the same `ef5-container` used by TITO; only the run layout
+differs.
 
-The workshop materials are organized into two main branches corresponding to two training days.
+There is **one resolution (30 m)** and **one control file**:
+`conf/control_30m.txt`.
 
-## Workshop Branches
-
-### EF5
-
-**Branch:** `EF5-only`
-
-The first day focuses on using the **EF5 hydrologic model** for Barbados.
-
-This branch contains the files, data, and configurations required to run EF5 using **Docker**, including different model configurations. The exercises introduce the configuration and execution of the hydrologic model and the analysis of model outputs for different domains and gauge locations.
-
-**Access the branch:**  
-https://github.com/AHWALab/WMO_BA/tree/EF5-only
-
-Detailed instructions for installing, configuring, and running EF5 are provided in the README within this branch.
+This package does **not** ship `docker/ef5-container.tar`. Build the image
+locally (see below).
 
 ---
 
-### TITO Barbados
+## Folder layout
 
-**Branch:** `TITO_BA`
-
-The second day focuses on **TITO** and its application to hydrologic forecasting in Barbados.
-
-This branch contains the materials and exercises used during the workshop to explore the TITO system, including the processing of hydrometeorological information and the generation and analysis of hydrologic forecasts for Barbados.
-
-**Access the branch:**  
-https://github.com/AHWALab/WMO_BA/tree/TITO_BA
-
-Detailed instructions and exercises for TITO are provided in the README within this branch.
+```text
+EF5_BarbadosTraining/
+├── data/                        → mounted as /data (model inputs, read/write)
+│   ├── basic/                   DEM, flow direction (DDM), flow accumulation (FAM)
+│   │   └── DEM_barbados_30m.tif / FDIR_barbados_30m.tif / FAC_barbados_30m.tif
+│   ├── parameters/
+│   │   ├── CREST_Barbados_30m/
+│   │   └── KW_Barbados_30m/
+│   ├── pet/                     PET climatology PET.01.tif … PET.12.tif
+│   ├── states/
+│   │   └── 30m/                 warm-start states (crest_SM, kwr_*)
+│   └── precip/                  IMERG forcing: imerg.qpe.YYYYMMDDHHUU.30minAccum.tif
+├── output/                      → mounted as /output (EF5 results)
+│   └── 30m/                     results — 30 m domain run
+├── conf/                        → mounted as /conf (control files, read-only)
+│   ├── control_30m.txt          the only control file — Barbados 30 m
+│   └── basin_list/
+│       └── Barbados_30m_basin_new.txt
+├── docker/
+│   ├── Dockerfile               builds ef5-container:latest from source (AHWALab/EF5)
+│   ├── build_ef5.sh             build/reuse (Linux & macOS)
+│   └── build_ef5.cmd            build/reuse (Windows CMD — no PowerShell)
+├── docker-compose.yml           cross-platform launcher (Linux, macOS and Windows)
+├── run_ef5.sh                   run EF5 (Linux / macOS / WSL)
+├── run_ef5.cmd                  run EF5 (Windows CMD — no PowerShell)
+├── README_english.md            English version
+└── README.md
+```
 
 ---
 
-## Repository Structure
+## How the container accesses the folders
 
-| Branch | Workshop | Main topic |
-|---|---|---|
-| `EF5` | Day 1 | Configuration and execution of the EF5 hydrologic model |
-| `TITO_BA` | Day 2 | Application of TITO for hydrologic forecasting in Barbados |
+`run_ef5.sh`, `run_ef5.cmd` and `docker-compose.yml` bind-mount the three
+main folders into the container and run EF5 from the container root, so every
+path in the control file is relative to `/`.
 
-To get started, select the branch corresponding to the workshop day and follow the instructions provided in its README.
+| Host folder | Container path | Used for |
+|-------------|----------------|----------|
+| `./data` | `/data` | Inputs: basic, parameters, pet, states, precip |
+| `./output` | `/output` | EF5 results (maxq, maxunitq, `ts.*.tif`, logs, CSV) |
+| `./conf` | `/conf` | EF5 control files |
+
+---
+
+## Build the image
+
+Build `ef5-container:latest` from `docker/Dockerfile` (clones AHWALab/EF5 and
+compiles; needs internet; a few minutes). Optionally save your own archive
+afterward.
+
+### Linux / macOS
+
+```bash
+./docker/build_ef5.sh --rebuild       # compile from source (needs internet)
+./docker/build_ef5.sh --status        # show which image will be used
+./docker/build_ef5.sh --save          # optional: save your image to docker/ef5-container.tar
+```
+
+### Windows (Command Prompt / CMD)
+
+CMD only, **no PowerShell**:
+
+```bat
+docker\build_ef5.cmd -Rebuild
+docker\build_ef5.cmd -Status
+docker\build_ef5.cmd -Save
+```
+
+Reuse order after you have built once:
+
+1. Local image already loaded.
+2. Optional archive `docker/ef5-container.tar` if you created one.
+3. Build from `docker/Dockerfile`.
+
+---
+
+## Run EF5
+
+There is a single control file. If none is passed, the default is
+`conf/control_30m.txt`.
+
+### Linux / macOS / WSL
+
+```bash
+./run_ef5.sh                            # 30 m  → output/30m/
+./run_ef5.sh conf/control_30m.txt       # same, explicit control file
+./run_ef5.sh --bash                     # interactive shell in the container
+```
+
+### Windows (CMD)
+
+Prefer a **local** path (e.g. `C:\...`), not a mapped network drive:
+
+```bat
+run_ef5.cmd
+run_ef5.cmd -Control control_30m.txt
+run_ef5.cmd -Bash
+```
+
+| Platform | Example |
+|----------|---------|
+| Linux / WSL / macOS | `./run_ef5.sh conf/control_30m.txt` |
+| Windows (CMD) | `run_ef5.cmd -Control control_30m.txt` |
+| Any OS | `docker compose run --rm ef5 /ef5/bin/ef5 /conf/control_30m.txt` |
+
+On macOS (Docker Desktop) there is no host networking, so `run_ef5.sh`
+automatically uses `docker compose`.
+
+---
+
+## Control file and outputs
+
+| Control | Resolution | Purpose | Output folder | States |
+|---------|------------|---------|---------------|--------|
+| `conf/control_30m.txt` | 30 m | Barbados domain | `./output/30m/` | `data/states/30m/` |
+
+The basin / gauge list (reference) is in `conf/basin_list/Barbados_30m_basin_new.txt`.
+
+Outputs include `maxq`, `maxunitq`, accumulated precipitation (and soil moisture
+when enabled) grids.
+
+Before a run with precipitation, place IMERG GeoTIFFs in:
+
+```text
+data/precip/
+```
+
+named `imerg.qpe.YYYYMMDDHHUU.30minAccum.tif`. Missing files are treated as
+**zero** precipitation.
+
+The example window in `conf/control_30m.txt` is `TIME_BEGIN=202608140800` to
+`TIME_END=202608180000`. Edit those lines for a different simulation period.
+
+---
+
+## Windows notes
+
+- Use **Command Prompt (CMD)** with `run_ef5.cmd` / `docker\build_ef5.cmd`
+  (there are no PowerShell scripts).
+- **Docker bind mounts** from mapped network drives (`X:`) often fail or appear
+  empty inside the container. Copy the repo to a **local** folder first:
+
+```bat
+xcopy /E /I X:\WMO_BA C:\EF5_BarbadosTraining
+cd /d C:\EF5_BarbadosTraining
+docker\build_ef5.cmd -Rebuild
+run_ef5.cmd -Control control_30m.txt
+```
+
+- Direct Docker (no launchers):
+
+```bat
+docker compose build
+docker compose run --rm ef5 /ef5/bin/ef5 /conf/control_30m.txt
+```
