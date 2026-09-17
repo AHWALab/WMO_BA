@@ -1,5 +1,5 @@
 [Gauge 0] cellx=2021 celly=3188 outputts=false #Num Cells = 98503.000000
-[Gauge 1] cellx=1384 celly=3254 outputts=True #Num Cells = 72947.000000
+[Gauge 1] cellx=1384 celly=3254 outputts=false #Num Cells = 72947.000000
 [Gauge 2] cellx=1593 celly=2698 outputts=false #Num Cells = 28829.000000
 [Gauge 3] cellx=1302 celly=2931 outputts=false #Num Cells = 22358.000000
 [Gauge 4] cellx=2039 celly=3169 outputts=false #Num Cells = 16764.000000
